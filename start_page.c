@@ -1,7 +1,7 @@
 void open_start(){
 	int height, width, y;
-	start = newwin(0,0,0,0);
-	check_win(start);
+	start = stdscr;
+	werase(start);
 
 	getmaxyx(start, height, width);
 	y = height >> 1; /* center of y axis */
@@ -13,6 +13,7 @@ void open_start(){
 	wcenter(start, y+1, "type :o 'website name' <enter> to open a website\n");
 	wcenter(start, y+2, "type :q <enter> to exit abob\n");
 	wcenter(start, y+3, "type :help for help\n");
+	wcenter(start, y+4, "type :link N to follow a page link\n");
 
         touchwin(start);
 	wrefresh(start);

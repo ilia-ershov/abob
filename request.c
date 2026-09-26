@@ -4,60 +4,78 @@
 #include <curl/curl.h>
 #include <regex.h>
 
-char* url_pattern = "^(https?://)?([a-z0-9_]+(-[a-z0-9]+)*\\.)+[a-z]{2,}(:[0-9]{1,5})?(/.*)?$"; 
-/* 
- * ^ - start of string
- * a* - match 0 or more 'a'
- * a? - match 0 or 1 'a'
- * a+ - match 1 or more 'a'
- * [:alnum:] - a-zA-Z0-9 
- * \ - escape special characters that have a special meaning in regex, such as the dot
- * a{y,x} - a repeated from y to x times
- * a{2,} - a repeated 2 or more times
- * a{,2} - a repeated 2 or less times
- * . - a metacharacter that matches any single character except for '\n'
- * $ - end of a string
-*/
+typedef struct {
+	char *data;
+	size_t length;
+	size_t capacity;
+} response_buffer;
 
-size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
-    // Write the received data to a buffer
-    size_t realsize = size * nmemb;
-    char *buffer = (char *)userdata;
-    memcpy(buffer, ptr, realsize);
-    return realsize;
+static response_buffer downloaded = {0};
+
+static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	response_buffer *buffer = userdata;
+	size_t received = size * nmemb;
+
+	if (buffer->length + received + 1 > buffer->capacity) {
+		size_t capacity = buffer->capacity == 0 ? 8192 : buffer->capacity;
+		while (capacity < buffer->length + received + 1)
+			capacity *= 2;
+		char *data = realloc(buffer->data, capacity);
+		if (data == NULL)
+			return 0;
+		buffer->data = data;
+		buffer->capacity = capacity;
+	}
+
+	memcpy(buffer->data + buffer->length, ptr, received);
+	buffer->length += received;
+	buffer->data[buffer->length] = '\0';
+	return received;
 }
 
-int validate_url(char *url){
-    regex_t regex;
-    int reti;
-    reti = regcomp(&regex, url_pattern, REG_EXTENDED);
-    if (reti) {
-        fprintf(stderr, "Could not compile regex\n");
-        return 0;
-    }
-    reti = regexec(&regex, url, 0, NULL, 0);
-    // Free the memory used by the regular expression
-    regfree(&regex);
-    return !reti;
+int validate_url(char *url)
+{
+	static const char *pattern = "^https?://[^[:space:]/]+([/?].*)?$";
+	regex_t regex;
+
+	if (url == NULL || regcomp(&regex, pattern, REG_EXTENDED | REG_ICASE) != 0)
+		return 0;
+	int result = regexec(&regex, url, 0, NULL, 0) == 0;
+	regfree(&regex);
+	return result;
 }
 
-char buffer[2048 * 2048];	// Allocate a buffer to store the received data
+char *request(char *url)
+{
+	CURL *curl = curl_easy_init();
+	if (curl == NULL)
+		return NULL;
 
-char *request(char *url) {
-    CURL *curl;
-    CURLcode res;
-    curl = curl_easy_init();
-    if (curl) {
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, "ABOB/0.0");
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, buffer);
-        res = curl_easy_perform(curl);
-        if (res != CURLE_OK) {
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-        }
-        curl_easy_cleanup(curl);
-    }
+	downloaded.length = 0;
+	if (downloaded.data != NULL)
+		downloaded.data[0] = '\0';
 
-    return buffer;
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_USERAGENT, "ABOB/0.0");
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &downloaded);
+	curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+	CURLcode result = curl_easy_perform(curl);
+	long response_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+	curl_easy_cleanup(curl);
+
+	if (result != CURLE_OK || response_code >= 400 || downloaded.data == NULL) {
+		fprintf(stderr, "Unable to open %s: %s\n", url,
+			result == CURLE_OK ? "HTTP error" : curl_easy_strerror(result));
+		return NULL;
+	}
+	return downloaded.data;
 }

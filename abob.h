@@ -7,6 +7,7 @@
 #include <ncurses.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
 
 /* FUNCTIONS */
@@ -25,14 +26,22 @@ void upd_tab_bar(void);				/* update tab bar */
 
 void set_url(char *str);			/* set url to given string */
 char *get_url();				/* get url */
+char *parse(char *html_content);		/* convert HTML to readable text */
+char *parse_page(char *html_content, char *base_url, int tab_index);
+char *request(char *url);			/* download a page */
+void open_link(int number);
 
 /* VARIABLES */
 
 /* I need to redo this later, because overflow and else */
 #define MAX_WEBSITES 42
-char websites[MAX_WEBSITES][100];		/* array of websites url-s */
-int cur = -1;					/* current website */
-int wmax = -1; 					/* max amount of websites */
+#define MAX_LINKS 256
+static char websites[MAX_WEBSITES][100];	/* array of websites url-s */
+static int cur = -1;				/* current website */
+static int wmax = -1; 				/* max amount of websites */
 
 /* create start, prompt, array of websites, insert and tab_bar windows */
-WINDOW *start, *prompt, *web_wins[MAX_WEBSITES], *ins, *t_bar;		
+static WINDOW *start, *prompt, *web_wins[MAX_WEBSITES], *ins, *t_bar;
+static char *pages[MAX_WEBSITES];
+static char links[MAX_WEBSITES][MAX_LINKS][100];
+static int link_counts[MAX_WEBSITES];

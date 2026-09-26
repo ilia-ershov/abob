@@ -1,1 +1,7 @@
-gcc -o abob abob.c -I/usr/include/libxml2 -lxml2 -lz -llzma -licui18n -licuuc -licudata -lm -lncurses -lcurl
+#!/bin/sh
+
+set -eu
+
+cc -o abob abob.c \
+	-I/opt/local/include/libxml2 \
+	-lxml2 -lncurses -lcurl

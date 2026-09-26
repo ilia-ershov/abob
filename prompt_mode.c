@@ -31,15 +31,24 @@ void open_prompt(){
 	char *content = get_thing_after_space(all);	/* get text after command */
 	char *cmd = strtok(all, " ");			/* get user command */
 	
-	if(strcmp(cmd, "o") == 0){			/* open website on "o" */
+	if(strcmp(cmd, "o") == 0 || strcmp(cmd, "open") == 0){	/* open website */
 		if(content[0] == '\0') /* if user doesn't open anything show error */
 			show_error("Error! Nothing to open");
 		else
 			open_website(content);
-	}else if(strcmp(cmd, "q") == 0){		/* on q we quit the programm */
+	}else if(strcmp(cmd, "q") == 0 || strcmp(cmd, "quit") == 0){	/* quit */
+		endwin();
 		exit(0);
-	}else if(strcmp(cmd, "help") == 0){		/* display start page on help */
-		open_start();				/* should be changed later */
+	}else if(strcmp(cmd, "help") == 0 || strcmp(cmd, "home") == 0){
+		open_start();
+	}else if(strcmp(cmd, "link") == 0){
+		char *end;
+		long number = strtol(content, &end, 10);
+		if (content[0] == '\0' || *end != '\0' || number < 1 ||
+		    number > MAX_LINKS)
+			show_error("Usage: :link <number>");
+		else
+			open_link((int)number);
 	}else{
 		show_error("Error! Command not found");
 	}
